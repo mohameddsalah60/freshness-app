@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="theme-color" content="#2563EB">
+<title>فحص الصلاحية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+/* Layout: no app bar. One big scan stage (six digit cells), then a board with a Current/History switch, status tiles and countdown cards grouped by urgency. Light only. */
+:root{
+  --font:'Cairo','Tajawal',Tahoma,'Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --bg:#EAF2FB; --paper:#FFFFFF; --ink:#0F1B2D; --ink-2:#4F607A; --line:#D9E5F2; --soft:#F3F8FD;
+  --blue:#2563EB; --blue-d:#1B4FCB; --blue-soft:#E6EFFE; --steel:#639EB0; --brand-red:#E74732;
+  --expired:#D32F2F; --expired-soft:#FDE8E7; --expired-ink:#B3231F;
+  --soon:#E8780C; --soon-soft:#FEEBD6; --soon-ink:#A85306;
+  --week:#F5C518; --week-soft:#FDF3C7; --week-ink:#7A5B00;
+  --ok:#1F9D6B; --ok-soft:#DDF4EA; --ok-ink:#15724D;
+  --shadow:0 1px 2px rgba(15,27,45,.05),0 10px 30px rgba(31,80,150,.10);
+  --shadow-lg:0 24px 70px rgba(15,27,45,.30);
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);background-image:radial-gradient(900px 420px at 85% -80px,#CFE2FA 0,transparent 70%),radial-gradient(700px 380px at -10% 10%,#DCEBF3 0,transparent 70%);background-repeat:no-repeat;color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:20px 48px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:10px}
+.wrap{max-width:1120px;margin-inline:auto;display:flex;flex-direction:column;gap:20px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+bdi.nm{unicode-bidi:isolate}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;border:2px solid var(--line);background:var(--paper);color:var(--ink);padding:0 18px;height:46px;font-weight:700;white-space:nowrap}
+.btn:hover{border-color:var(--blue);color:var(--blue-d)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn-blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.28)}
+.btn-blue:hover{background:var(--blue-d);border-color:var(--blue-d);color:#fff}
+.btn-xl{height:64px;font-size:18px;padding-inline:26px;border-radius:18px}
+.btn-red{background:var(--expired);border-color:var(--expired);color:#fff}
+.btn-red:hover{background:#B3231F;border-color:#B3231F;color:#fff}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.icon-btn{width:42px;height:42px;border-radius:12px;border:2px solid transparent;background:none;color:var(--ink-2);display:grid;place-items:center}
+.icon-btn:hover{background:var(--blue-soft);color:var(--blue-d)}
+.icon-btn.del:hover{background:var(--expired-soft);color:var(--expired)}
+
+/* scan stage */
+.stage{position:relative;overflow:hidden;background:var(--paper);border-radius:30px;box-shadow:var(--shadow);padding:22px 24px 24px;display:grid;gap:18px}
+.stage::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:230px;background:repeating-linear-gradient(90deg,var(--blue-soft) 0 3px,transparent 3px 7px,var(--blue-soft) 7px 8px,transparent 8px 15px,var(--blue-soft) 15px 21px,transparent 21px 25px);opacity:.75;-webkit-mask-image:linear-gradient(90deg,#000,transparent);mask-image:linear-gradient(90deg,#000,transparent);pointer-events:none}
+.stage > *{position:relative}
+.brand-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.brand{display:flex;gap:12px;align-items:center}
+.mark{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--steel));display:grid;place-items:center;box-shadow:0 6px 14px rgba(37,99,235,.3)}
+.mark svg{width:25px;height:25px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.brand b{display:block;font-size:20px;font-weight:900;line-height:1.1}
+.brand small{color:var(--ink-2);font-size:13px}
+.who{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:99px;padding:5px 14px 5px 6px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.who i{width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:800}
+.stage h1{margin:0;font-size:clamp(24px,4.4vw,36px);font-weight:900;line-height:1.25;text-wrap:balance;max-width:20ch}
+.stage h1 em{font-style:normal;color:var(--blue)}
+.entry{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch}
+.cells{position:relative;display:flex;gap:8px;direction:ltr;flex:0 1 auto;cursor:text}
+.cells .cell{width:clamp(44px,12vw,62px);height:clamp(60px,15vw,78px);border-radius:16px;border:2px solid var(--line);background:var(--soft);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:clamp(26px,7vw,36px);color:var(--ink)}
+.cells .cell.on{border-color:var(--blue);background:#fff;box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.cells .cell.full{background:var(--blue-soft);border-color:#B8D0F8;color:var(--blue-d)}
+.cells.busy{opacity:.6}
+.cells input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:text}
+.entry .btn-xl{flex:1 1 220px}
+.status{min-height:28px;font-size:15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--ink-2);font-weight:600}
+.status.error,.status.empty{color:var(--expired-ink)}
+.status .btn{height:36px;padding-inline:14px;font-size:14px}
+.spin{width:20px;height:20px;border-radius:50%;border:3px solid var(--blue-soft);border-top-color:var(--blue);animation:sp .8s linear infinite;flex:none}
+.btn-blue .spin{border-color:rgba(255,255,255,.4);border-top-color:#fff}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+
+/* board */
+.board{display:grid;gap:16px;min-width:0}
+.board-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;background:var(--paper);border-radius:16px;padding:5px;box-shadow:var(--shadow);gap:4px}
+.seg button{border:0;background:none;border-radius:12px;padding:9px 18px;font-weight:800;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+.seg button b{background:var(--soft);border-radius:99px;padding:0 9px;font-size:13px;font-variant-numeric:tabular-nums}
+.seg button[aria-selected="true"]{background:var(--blue);color:#fff}
+.seg button[aria-selected="true"] b{background:rgba(255,255,255,.22);color:#fff}
+.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.head-actions .btn{height:44px}
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.tile{border:2px solid transparent;border-radius:20px;padding:12px 16px 12px;text-align:start;background:var(--paper);box-shadow:var(--shadow);display:grid;gap:0;min-width:0}
+.tile .n{font-size:38px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+.tile .l{font-size:13.5px;font-weight:700;color:var(--ink-2);line-height:1.3}
+.tile[aria-pressed="true"]{border-color:var(--ink)}
+.tile.t-expired{background:var(--expired-soft)} .tile.t-expired .n{color:var(--expired-ink)}
+.tile.t-soon{background:var(--soon-soft)} .tile.t-soon .n{color:var(--soon-ink)}
+.tile.t-week{background:var(--week-soft)} .tile.t-week .n{color:var(--week-ink)}
+.tile.t-ok{background:var(--ok-soft)} .tile.t-ok .n{color:var(--ok-ink)}
+@media(max-width:820px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:first-child{grid-column:1/-1}}
+.tools{display:flex;flex-wrap:wrap;gap:10px}
+.search-in{position:relative;flex:1 1 260px;min-width:0}
+.search-in input{width:100%;height:46px;border:2px solid var(--line);border-radius:14px;background:var(--paper);padding-inline:44px 14px}
+.search-in input:focus{outline:none;border-color:var(--blue)}
+.search-in svg{position:absolute;inset-inline-start:14px;top:13px;color:var(--ink-2)}
+select.sel{height:46px;border:2px solid var(--line);border-radius:14px;background:var(--paper);padding-inline:14px;font-weight:600}
+
+.group{display:grid;gap:10px}
+.group + .group{margin-top:8px}
+.group-h{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;margin:6px 4px 0}
+.group-h i{width:12px;height:12px;border-radius:50%}
+.group-h span{font-size:13px;color:var(--ink-2);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px}
+.card{position:relative;display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;background:var(--paper);border-radius:22px;padding:12px;box-shadow:var(--shadow);border:2px solid transparent;transition:border-color .6s,background-color .6s;min-width:0}
+.card.flash{border-color:var(--blue);background:#F4F8FF}
+.cd{border-radius:16px;display:grid;align-content:center;justify-items:center;text-align:center;padding:8px 4px;line-height:1.05;min-height:110px}
+.cd small{font-size:12px;font-weight:700;opacity:.9}
+.cd b{font-size:36px;font-weight:900;font-variant-numeric:tabular-nums;margin-block:3px}
+.cd b.word{font-size:25px}
+.cd.expired{background:var(--expired);color:#fff} .cd.soon{background:var(--soon);color:#fff}
+.cd.week{background:var(--week);color:#3B2F00} .cd.ok{background:var(--ok);color:#fff}
+.info{min-width:0;display:grid;gap:8px;align-content:start}
+.pn{font-weight:800;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.tag{background:var(--soft);border-radius:8px;padding:1px 8px;font-weight:600}
+.tag.pull{background:var(--soon-soft);color:var(--soon-ink)}
+.tag.mono{font-weight:600;font-size:12px}
+.dates{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13.5px}
+.dates span{color:var(--ink-2)} .dates b{font-variant-numeric:tabular-nums}
+.acts{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:2px;justify-content:flex-end}
+.btn-confirm{height:42px;border-radius:12px;border:0;background:var(--expired);color:#fff;font-weight:800;padding-inline:14px}
+.thumb{width:48px;height:48px;border-radius:14px;flex:none;display:grid;place-items:center;font-weight:900;font-size:20px;background:hsl(var(--h) 70% 92%);color:hsl(var(--h) 55% 32%);font-family:var(--font);direction:ltr}
+.empty{background:var(--paper);border-radius:24px;box-shadow:var(--shadow);padding:42px 22px;display:grid;gap:12px;justify-items:center;text-align:center}
+.empty b{font-size:20px;font-weight:900}
+.empty p{margin:0;color:var(--ink-2);max-width:46ch}
+.more{text-align:center;color:var(--ink-2);font-size:13px;padding-block:6px}
+
+/* history */
+.audit{background:var(--paper);border-radius:22px;box-shadow:var(--shadow);overflow:hidden}
+.audit summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:16px 20px}
+.audit summary::-webkit-details-marker{display:none}
+.audit summary::before{content:"";width:9px;height:9px;border-inline-end:2.5px solid var(--ink-2);border-bottom:2.5px solid var(--ink-2);transform:rotate(45deg);flex:none}
+.audit[open] summary::before{transform:rotate(-135deg)}
+.audit h3{margin:0;font-size:17px;font-weight:900}
+.audit .sub{color:var(--ink-2);font-size:13px}
+.audit .tags{display:flex;gap:6px;flex-wrap:wrap;margin-inline-start:auto}
+.live{background:var(--blue);color:#fff;border-radius:99px;font-size:11px;font-weight:800;padding:2px 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:99px;font-size:12.5px;font-weight:800;white-space:nowrap}
+.pill.expired{background:var(--expired-soft);color:var(--expired-ink)}
+.pill.soon{background:var(--soon-soft);color:var(--soon-ink)}
+.pill.week{background:var(--week-soft);color:var(--week-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.pill.blue{background:var(--blue-soft);color:var(--blue-d)}
+.audit-body{border-top:2px solid var(--soft);padding:8px 12px 12px;display:grid;gap:4px}
+.audit-tools{display:flex;justify-content:flex-end;padding:4px 8px}
+.mini{display:grid;grid-template-columns:minmax(0,2.4fr) 120px 130px;gap:12px;align-items:center;padding:10px 8px;border-top:1px solid var(--soft)}
+.mini .pn{font-size:14.5px}
+.mini .p{display:flex;gap:10px;align-items:center;min-width:0}
+.mini .thumb{width:38px;height:38px;font-size:16px;border-radius:11px}
+.mini .lb{display:none;font-size:11px;color:var(--ink-2);font-weight:600}
+@media(max-width:760px){.mini{grid-template-columns:1fr 1fr}.mini .p{grid-column:1/-1}.mini .lb{display:block}}
+
+/* dialogs */
+dialog{border:0;padding:0;border-radius:28px;background:var(--paper);color:var(--ink);width:min(540px,calc(100vw - 24px));max-height:calc(100dvh - 24px);box-shadow:var(--shadow-lg);overflow:auto}
+dialog::backdrop{background:rgba(12,24,44,.55)}
+.dlg{display:grid;gap:16px;padding:22px}
+.dlg-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.dlg-head h2{margin:0;font-size:21px;font-weight:900}
+.dlg-head p{margin:2px 0 0;color:var(--ink-2);font-size:14px}
+.hero{display:flex;gap:14px;align-items:center}
+.hero .thumb{width:68px;height:68px;border-radius:20px;font-size:30px}
+.hero .pn{font-size:19px}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;background:var(--soft);border-radius:18px;padding:14px 16px}
+.facts div{min-width:0}.facts .wide{grid-column:1/-1}
+.facts dt{font-size:12px;color:var(--ink-2);font-weight:700}
+.facts dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+mark.sfx{background:#FFE08A;color:inherit;border-radius:5px;padding:0 2px}
+.label{display:block;font-weight:800;margin-bottom:8px}
+.date-in{width:100%;height:62px;border-radius:16px;border:2px solid var(--line);background:#fff;padding-inline:18px;font-size:24px;font-weight:800;font-family:var(--font)}
+.date-in:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.quick button{border:2px solid var(--line);background:#fff;border-radius:99px;padding:6px 14px;font-size:14px;font-weight:700}
+.quick button:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-soft)}
+.preview{min-height:30px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-weight:800}
+.preview .warn{font-weight:700;font-size:13px;color:var(--soon-ink)}
+.err{margin:0;background:var(--expired-soft);color:var(--expired-ink);border-radius:14px;padding:11px 15px;font-weight:700;font-size:14.5px}
+.dlg-actions{display:grid;grid-template-columns:1fr auto;gap:10px}
+.pick{display:grid;gap:8px;max-height:min(52dvh,420px);overflow:auto;padding:2px}
+.pick button{display:flex;gap:12px;align-items:center;text-align:start;border:2px solid var(--line);background:#fff;border-radius:16px;padding:10px 12px;width:100%}
+.pick button:hover,.pick button:focus-visible{border-color:var(--blue);background:var(--blue-soft)}
+.pick .thumb{width:44px;height:44px;font-size:18px}
+.link-btn{border:0;background:none;color:var(--blue-d);font-weight:800;padding:0;text-decoration:underline;text-underline-offset:3px;justify-self:start;font-size:14px}
+#reader{width:100%;min-height:220px;border-radius:18px;overflow:hidden;background:#0C182C}
+.scan-msg{font-size:14.5px;color:var(--ink-2);margin:0}
+.scan-msg.bad{background:var(--expired-soft);color:var(--expired-ink);padding:11px 15px;border-radius:14px;font-weight:700}
+.row-form{display:flex;gap:8px;flex-wrap:wrap}
+.row-form input[type=text]{flex:1 1 160px;min-width:0;height:48px;border:2px solid var(--line);border-radius:14px;padding-inline:12px;font-family:var(--mono);direction:ltr;text-align:center;font-size:18px;letter-spacing:.1em}
+.row-form input[type=text]:focus{outline:none;border-color:var(--blue)}
+textarea.csv{width:100%;height:180px;border:2px solid var(--line);border-radius:14px;background:var(--soft);padding:10px;font-family:var(--mono);font-size:12px;direction:ltr}
+
+.toasts{position:fixed;inset-inline:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;justify-items:center;z-index:60;pointer-events:none}
+.toast{pointer-events:auto;background:var(--ink);color:#fff;border-radius:16px;padding:13px 18px;font-weight:700;box-shadow:var(--shadow-lg);display:flex;gap:10px;align-items:center;max-width:min(560px,100%)}
+.toast.ok svg{color:#6EE7A8}.toast.warn svg{color:#FFC46B}
+footer{color:var(--ink-2);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:center}
+@media(max-width:560px){.stage{padding:18px 16px 20px;border-radius:26px}.card{grid-template-columns:78px minmax(0,1fr)}.cd b{font-size:30px}}
+</style>
+
+<div id="app" dir="rtl" lang="ar">
+<main class="wrap">
+  <section class="stage" aria-labelledby="h1">
+    <div class="brand-row">
+      <div class="brand"><div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2.1 2.1L15.5 13"/></svg></div><div><b>فحص الصلاحية</b><small id="auditMeta"></small></div></div>
+      <div class="who"><i aria-hidden="true">مص</i>محمد صلاح · فرع بورسعيد</div>
+    </div>
+    <h1 id="h1">اكتب <em>آخر 6 أرقام</em> من الباركود أو امسحه</h1>
+    <div class="entry">
+      <div class="cells" id="cells">
+        <span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span>
+        <label class="sr" for="q">آخر 6 أرقام من الباركود</label>
+        <input id="q" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="14" autocomplete="off" autofocus enterkeyhint="search">
+      </div>
+      <button type="button" class="btn btn-blue btn-xl" id="scanBtn"><svg class="i" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M7 9v6M10.5 9v6M14 9v6M17 9v6"/></svg>مسح بالكاميرا</button>
+    </div>
+    <div class="status" id="searchStatus" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="board" aria-label="نتائج الفحص">
+    <div class="board-head">
+      <div class="seg" role="tablist" aria-label="العرض">
+        <button type="button" role="tab" id="tabCur" aria-selected="true">الفحص الحالي <b id="curN">0</b></button>
+        <button type="button" role="tab" id="tabHist" aria-selected="false">السجل <b id="histN">0</b></button>
+      </div>
+      <div class="head-actions" id="headActions"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="tools">
+      <div class="search-in"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><label class="sr" for="listQ">بحث في القائمة</label><input id="listQ" type="search" placeholder="ابحث بالاسم أو رقم المنتج أو الباركود"></div>
+      <div id="sortWrap"><label class="sr" for="sortSel">الترتيب</label><select class="sel" id="sortSel"><option value="expiry">الأقرب انتهاءً أولًا</option><option value="added">الأحدث إضافة</option><option value="name">اسم المنتج</option></select></div>
+    </div>
+    <div id="list"></div>
+    <div id="history" hidden></div>
+  </section>
+
+  <footer><span id="catInfo"></span><span id="modeInfo"></span></footer>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog id="dlgProduct" aria-labelledby="dlgProductTitle"></dialog>
+<dialog id="dlgEdit" aria-labelledby="dlgEditTitle"></dialog>
+<dialog id="dlgScan" aria-labelledby="dlgScanTitle">
+  <div class="dlg">
+    <div class="dlg-head"><div><h2 id="dlgScanTitle">مسح الباركود</h2><p>وجّه الكاميرا نحو الباركود وسيُقرأ تلقائيًا.</p></div><button type="button" class="icon-btn" data-close="dlgScan" aria-label="إغلاق"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div id="reader"></div>
+    <p class="scan-msg" id="scanMsg" role="status"></p>
+    <div class="row-form">
+      <label class="btn" for="photoIn" style="cursor:pointer"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>التقاط صورة للباركود</label>
+      <input id="photoIn" class="sr" type="file" accept="image/*" capture="environment">
+    </div>
+    <form class="row-form" id="manualForm" autocomplete="off">
+      <label class="sr" for="manualQ">إدخال الباركود يدويًا</label>
+      <input type="text" id="manualQ" inputmode="numeric" placeholder="الباركود أو آخر 6 أرقام" maxlength="14">
+      <button class="btn btn-blue" type="submit" style="height:48px">بحث</button>
+    </form>
+  </div>
+</dialog>
+<dialog id="dlgExport" aria-labelledby="dlgExportTitle">
+  <div class="dlg">
+    <div class="dlg-head"><div><h2 id="dlgExportTitle">تصدير CSV</h2><p>التنزيل المباشر غير متاح هنا. انسخ النص والصقه في ملف .csv.</p></div><button type="button" class="icon-btn" data-close="dlgExport" aria-label="إغلاق"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <label class="sr" for="csvText">محتوى CSV</label>
+    <textarea class="csv" id="csvText" readonly></textarea>
+    <div class="dlg-actions"><button type="button" class="btn btn-blue" id="copyCsv" style="height:52px">نسخ المحتوى</button><button type="button" class="btn" data-close="dlgExport" style="height:52px">إغلاق</button></div>
+  </div>
+</dialog>
+<div id="reader-file" hidden></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+document.documentElement.lang='ar';document.documentElement.dir='rtl';
+
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
+const USER='محمد صلاح';
+const todayStart=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+const toISO=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseISO=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');if(!m)return null;const y=+m[1],mo=+m[2],d=+m[3];const dt=new Date(y,mo-1,d);return(dt.getFullYear()===y&&dt.getMonth()===mo-1&&dt.getDate()===d)?dt:null};
+const fmt=iso=>{const d=parseISO(iso);return d?`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`:'—'};
+const fmtDT=iso=>{const d=new Date(iso);return isNaN(d)?'—':`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const fmtT=iso=>{const d=new Date(iso);return isNaN(d)?'—':`${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const addDaysISO=n=>{const d=todayStart();d.setDate(d.getDate()+n);return toISO(d)};
+const daysLeft=iso=>Math.round((parseISO(iso)-todayStart())/864e5);
+const digitsOnly=s=>String(s||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/\D/g,'');
+const arDays=n=>n===1?'يوم واحد':n===2?'يومان':n<=10?`${n} أيام`:`${n} يومًا`;
+const unit=n=>n===1?'يوم':n<=10?'أيام':'يومًا';
+
+/* ---------- pull-from-shelf rules ---------- */
+/* Each product has a type t (set in public/products.txt by scripts/build-products.py). Days = how many days BEFORE the printed expiry date it must leave the shelf. */
+const PULL={1:{d:1,l:'عيش'},2:{d:2,l:'لحوم ودواجن'},3:{d:1,l:'جبن فريش'},4:{d:1,l:'خضار وفاكهة'}};
+const pullDays=p=>PULL[p.t]?PULL[p.t].d:0;
+const pullISO=(expiry,pd)=>{const d=parseISO(expiry);d.setDate(d.getDate()-pd);return toISO(d)};
+const pullWord=pd=>pd===1?'بيوم':'بيومين';
+/* status uses days left until the pull date (eff). eff<=0 means: expired, or must leave the shelf today. */
+const statusOf=eff=>eff<=0?'expired':eff<=3?'soon':eff<=7?'week':'ok';
+const STATUS_COLOR={expired:'var(--expired)',soon:'var(--soon)',week:'var(--week)',ok:'var(--ok)'};
+const GROUP_LABEL={expired:'منتهي أو يُسحب الآن',soon:'خلال 3 أيام',week:'خلال 7 أيام',ok:'صالح'};
+const ORDER=['expired','soon','week','ok'];
+const stLabel=r=>r.st==='expired'?(r.days<0?'منتهي':'يُسحب الآن'):r.st==='soon'?'خلال 3 أيام':r.st==='week'?'خلال 7 أيام':'صالح';
+function leftText(days,pd){
+  if(days<0)return`منتهي منذ ${arDays(-days)}`;
+  const eff=days-pd;
+  if(pd>0){if(eff<0)return`تأخر سحبه ${arDays(-eff)}`;if(eff===0)return'يُسحب اليوم';if(eff===1)return'يُسحب غدًا';return`يُسحب بعد ${arDays(eff)}`}
+  return days===0?'ينتهي اليوم':days===1?'ينتهي غدًا':`ينتهي بعد ${arDays(days)}`;
+}
+const ic={
+  edit:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
+  trash:'<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+  x:'<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  down:'<svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/></svg>',
+  ok:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.5"/></svg>',
+  warn:'<svg class="i" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
+  flag:'<svg class="i" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>'
+};
+
+/* ---------- product catalog (loaded from products.txt) ---------- */
+const CAT_AR={'Personal Care':'العناية الشخصية','Beauty':'التجميل','Beverages':'المشروبات','Cooking & Baking':'الطبخ والخبز','Biscuits & Wafers':'بسكويت وويفر','Condiments':'صلصات وتوابل','Chips and Snacks':'شيبسي وسناكس','Coffee & Tea':'قهوة وشاي','Healthy & Special Diet':'أغذية صحية','Cleaning & Laundry':'التنظيف والغسيل','Frozen Food':'مجمدات','Chocolate':'شوكولاتة','Fruit & Veg':'فواكه وخضار','Breakfast Food':'الإفطار','Dairy':'ألبان','Ice Cream':'آيس كريم','Dairy & Eggs':'ألبان وبيض','Candies & Jellies':'حلوى وجيلي','Baby Corner':'ركن الأطفال','Snacks & Chocolate':'سناكس وشوكولاتة','Pet Care':'العناية بالحيوانات','Everyday Roastery Coffee':'قهوة محمصة','Canned & Jarred':'معلبات','Cold Cuts & Deli':'لحوم باردة وجبن','Bakery':'مخبوزات','Bakery & Pastry':'مخبوزات وحلويات','Tobacco & Smoke - Free':'تبغ','Ready To Eat':'جاهز للأكل','Nuts & Dried Fruits':'مكسرات ومجففات','Poultry, Meat & Seafood':'دواجن ولحوم وأسماك','Cakes':'كيك','Household Essentials':'أساسيات المنزل','Stationery & Games':'أدوات مكتبية وألعاب','Pharma & Wellness':'صيدلية وصحة','Sugar':'سكر','General Home Cleaning':'تنظيف منزلي','Premium Snacks':'سناكس مميزة','Paper & Plastic':'ورقيات وبلاستيك','Electronics':'إلكترونيات','Tissues & Wipes':'مناديل','Tissues & Disposables':'مناديل ومستهلكات','IQOS':'آيكوس','Flowers, Gifts & More':'هدايا وورد','Hot Deals':'عروض'};
+const P=[],byId=new Map(),bcAll=[],bcOwner=[];
+let catalogReady=false;
+async function loadCatalog(){
+  const r=await fetch('products.txt');
+  if(!r.ok)throw new Error('catalog '+r.status);
+  const lines=(await r.text()).split('\n');
+  const cats=JSON.parse(lines[0]);
+  for(let k=1;k<lines.length;k++){
+    const line=lines[k];if(!line)continue;const f=line.split('|');
+    const p={id:f[0],name:f[1],bcs:f[2].split(','),cat:CAT_AR[cats[+f[3]]]||cats[+f[3]],stock:+f[4],ex:(+f[5]&1)>0,act:(+f[5]&2)>0,t:+(f[6]||0)};
+    const i=P.push(p)-1;byId.set(p.id,p);p.bcs.forEach(b=>{bcAll.push(b);bcOwner.push(i)});
+  }
+  catalogReady=true;
+  $('#catInfo').textContent=`قاعدة المنتجات: ${P.length.toLocaleString('en-US')} منتج`;
+}
+const productById=id=>byId.get(id);
+const hue=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return h};
+const thumb=p=>`<span class="thumb" style="--h:${hue(p.cat||'x')}" aria-hidden="true">${esc([...(p.name||'?')][0].toUpperCase())}</span>`;
+const ProductAPI={
+  async search(d){
+    const hit=new Map();
+    for(let i=0;i<bcAll.length;i++){if(bcAll[i].endsWith(d)){const o=bcOwner[i];if(!hit.has(o))hit.set(o,bcAll[i])}}
+    return[...hit].map(([o,bc])=>({p:P[o],bc})).sort((a,b)=>(b.p.ex-a.p.ex)||(b.p.act-a.p.act)||((b.p.stock>0)-(a.p.stock>0))||a.p.name.localeCompare(b.p.name));
+  }
+};
+
+/* ---------- records: shared server (Vercel /api) with a local fallback ---------- */
+const KEY='salahia-freshness-v3';
+let mode='local',mem=null;
+const Net={
+  async req(method,path,body){
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),8000);
+    try{
+      const r=await fetch(path,{method,headers:body?{'content-type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,signal:ctl.signal,cache:'no-store'});
+      if(!(r.headers.get('content-type')||'').includes('json'))throw new Error('nojson');
+      const j=await r.json();
+      if(!r.ok)throw Object.assign(new Error(j.error||'http'),{status:r.status,code:j.error});
+      return j;
+    }finally{clearTimeout(t)}
+  }
+};
+const newAudit=()=>({id:uid(),startedAt:new Date().toISOString(),endedAt:null,user:USER});
+function readLocal(){try{const s=localStorage.getItem(KEY);if(s)return JSON.parse(s)}catch(e){}return mem}
+function persist(){if(mode!=='local')return;mem=state;try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+let state={current:newAudit(),audits:[],batches:[]};
+async function loadState(){
+  try{state=await Net.req('GET','/api/state');mode='server'}
+  catch(e){mode='local';state=readLocal()||{current:newAudit(),audits:[],batches:[]};persist()}
+  $('#modeInfo').textContent=mode==='server'?'متصل بالخادم · السجل مشترك بين كل المستخدمين':'وضع محلي · السجل محفوظ على هذا الجهاز فقط';
+}
+async function sync(){
+  if(mode!=='server')return;
+  try{state=await Net.req('GET','/api/state');if(!document.querySelector('dialog[open]'))renderAll()}catch(e){}
+}
+const Batches={
+  current(){return state.batches.filter(b=>b.auditId===state.current.id)},
+  exists(pid,expiry,exceptId){return this.current().some(b=>b.productId===pid&&b.expiry===expiry&&b.id!==exceptId)},
+  async add(pid,expiry,barcode){
+    if(mode==='server'){const r=await Net.req('POST','/api/batches',{productId:pid,expiry,barcode});state.batches.push(r.batch);return r.batch}
+    await sleep(120);const b={id:uid(),productId:pid,barcode,expiry,addedAt:new Date().toISOString(),auditId:state.current.id};state.batches.push(b);persist();return b;
+  },
+  async setExpiry(id,expiry){
+    if(mode==='server'){const r=await Net.req('PATCH','/api/batches',{id,expiry});const i=state.batches.findIndex(x=>x.id===id);if(i>-1)state.batches[i]=r.batch;return}
+    const b=state.batches.find(x=>x.id===id);if(b){b.expiry=expiry;persist()}
+  },
+  async remove(id){
+    if(mode==='server'){await Net.req('DELETE','/api/batches?id='+encodeURIComponent(id))}
+    state.batches=state.batches.filter(b=>b.id!==id);persist();
+  },
+  async finish(){
+    if(mode==='server'){await Net.req('POST','/api/finish',{auditId:state.current.id});await sync();return}
+    state.current.endedAt=new Date().toISOString();state.audits.unshift(state.current);state.current=newAudit();persist();
+  }
+};
+const decorate=b=>{
+  const p=productById(b.productId)||{id:b.productId,name:'منتج غير معروف',bcs:[b.barcode||'—'],cat:'',stock:0,t:0};
+  const days=daysLeft(b.expiry),pd=pullDays(p),eff=days-pd;
+  return{b,p,days,pd,eff,st:statusOf(eff),bc:b.barcode||p.bcs[0],pull:pullISO(b.expiry,pd)};
+};
+
+/* ---------- ui state ---------- */
+const ui={view:'cur',filter:'all',q:'',sort:'expiry',confirmDel:null,confirmFinish:false,flash:null};
+const bcHTML=(bc,sfx)=>(sfx&&bc.endsWith(sfx)&&sfx.length<bc.length)?`<span class="mono">${esc(bc.slice(0,-sfx.length))}<mark class="sfx">${esc(sfx)}</mark></span>`:`<span class="mono">${esc(bc)}</span>`;
+const pill=(st,label)=>`<span class="pill ${st}">${label}</span>`;
+const pullTag=p=>PULL[p.t]?`<span class="tag pull">يُسحب قبل الانتهاء ${pullWord(pullDays(p))} · ${PULL[p.t].l}</span>`:'';
+
+function toast(msg,kind='ok'){
+  const t=document.createElement('div');t.className='toast '+kind;t.innerHTML=(kind==='warn'?ic.warn:ic.ok)+'<span></span>';t.lastChild.textContent=msg;
+  const box=$('#toasts');box.appendChild(t);setTimeout(()=>t.remove(),3200);while(box.children.length>3)box.firstChild.remove();
+}
+
+/* ---------- board: current audit ---------- */
+function matchQ(r,q){return!q||(r.p.name+' '+r.p.id+' '+r.bc+' '+r.p.bcs.join(' ')).toLowerCase().includes(q)}
+function sortRows(rows){
+  const byName=(a,b)=>a.p.name.localeCompare(b.p.name);
+  if(ui.sort==='expiry')rows.sort((a,b)=>a.pull<b.pull?-1:a.pull>b.pull?1:a.b.expiry<b.b.expiry?-1:a.b.expiry>b.b.expiry?1:byName(a,b));
+  else if(ui.sort==='added')rows.sort((a,b)=>b.b.addedAt.localeCompare(a.b.addedAt));
+  else rows.sort(byName);
+  return rows;
+}
+function renderTiles(all){
+  const c={all:all.length,expired:0,soon:0,week:0,ok:0};all.forEach(r=>c[r.st]++);
+  const t=(k,cls,l)=>`<button type="button" class="tile ${cls}" data-filter="${k}" aria-pressed="${ui.filter===k}"><span class="n">${c[k]}</span><span class="l">${l}</span></button>`;
+  $('#tiles').innerHTML=t('all','t-all','إجمالي المفحوص')+t('expired','t-expired','منتهي / يُسحب الآن')+t('soon','t-soon','خلال 3 أيام')+t('week','t-week','خلال 7 أيام')+t('ok','t-ok','صالح');
+  $('#tiles').hidden=ui.view!=='cur';
+  $('#tiles .t-all').style.background='var(--blue-soft)';
+  $('#tiles .t-all .n').style.color='var(--blue-d)';
+}
+function cdBlock(r){
+  const {days,pd,eff}=r,verb=pd>0?'يُسحب':'ينتهي';
+  if(days<0)return`<small>منتهي منذ</small><b>${-days}</b><small>${unit(-days)}</small>`;
+  if(eff<0)return`<small>تأخر سحبه</small><b>${-eff}</b><small>${unit(-eff)}</small>`;
+  if(eff===0)return`<small>${verb}</small><b class="word">اليوم</b><small>&nbsp;</small>`;
+  if(eff===1)return`<small>${verb}</small><b class="word">غدًا</b><small>&nbsp;</small>`;
+  return`<small>${verb} بعد</small><b>${eff}</b><small>${unit(eff)}</small>`;
+}
+function cardHTML(r){
+  const {b,p,pd,st,bc}=r;
+  const del=ui.confirmDel===b.id?`<button type="button" class="btn-confirm" data-act="del-yes" data-id="${b.id}">تأكيد الحذف</button>`:`<button type="button" class="icon-btn del" data-act="del" data-id="${b.id}" aria-label="حذف هذا السجل">${ic.trash}</button>`;
+  return`<article class="card${ui.flash===b.id?' flash':''}">
+    <div class="cd ${st}">${cdBlock(r)}</div>
+    <div class="info">
+      <div class="pn"><bdi class="nm">${esc(p.name)}</bdi></div>
+      <div class="chips"><span class="tag mono">${esc(p.id)}</span><span class="tag mono">${esc(bc)}</span>${p.cat?`<span class="tag">${esc(p.cat)}</span>`:''}${pullTag(p)}</div>
+      <div class="dates"><div><span>الانتهاء </span><b>${fmt(b.expiry)}</b></div>${pd>0?`<div><span>السحب </span><b>${fmt(r.pull)}</b></div>`:''}<div><span>أُضيف </span><b>${fmtDT(b.addedAt)}</b></div></div>
+      <div class="acts"><button type="button" class="icon-btn" data-act="edit" data-id="${b.id}" aria-label="تعديل تاريخ الانتهاء">${ic.edit}</button>${del}</div>
+    </div></article>`;
+}
+function renderCurrent(){
+  const all=Batches.current().map(decorate);
+  renderTiles(all);
+  $('#curN').textContent=all.length;$('#histN').textContent=state.audits.length;
+  $('#auditMeta').textContent=`فحص بدأ ${fmtT(state.current.startedAt)} · ${all.length} منتج`;
+  const has=all.length>0;
+  $('#headActions').innerHTML=ui.view==='cur'?(ui.confirmFinish
+    ?`<button type="button" class="btn btn-red" data-act="finish-yes">تأكيد الإنهاء والأرشفة</button><button type="button" class="btn btn-ghost" data-act="finish-no">تراجع</button>`
+    :`<button type="button" class="btn" data-act="export-current" ${has?'':'disabled'}>${ic.down}تصدير CSV</button><button type="button" class="btn" data-act="finish" ${has?'':'disabled'}>${ic.flag}إنهاء الفحص</button>`):'';
+  const box=$('#list');
+  if(!has){
+    box.innerHTML=`<div class="empty"><b>ابدأ بأول منتج</b><p>اكتب آخر 6 أرقام من الباركود في الأعلى أو امسحه بالكاميرا، ثم اختر تاريخ الانتهاء. ستظهر هنا المنتجات مرتبة حسب موعد سحبها من الرف.</p></div>`;return;
+  }
+  const q=ui.q.trim().toLowerCase();
+  const rows=all.filter(r=>(ui.filter==='all'||r.st===ui.filter)&&matchQ(r,q));
+  if(!rows.length){box.innerHTML=`<div class="empty"><b>لا توجد نتائج مطابقة</b><p>غيّر البحث أو الحالة المختارة.</p><button type="button" class="btn" data-act="clear-filters">عرض كل المنتجات</button></div>`;return}
+  sortRows(rows);
+  if(ui.sort==='expiry'){
+    box.innerHTML=ORDER.map(st=>{const g=rows.filter(r=>r.st===st);if(!g.length)return'';return`<section class="group"><h3 class="group-h"><i style="background:${STATUS_COLOR[st]}"></i>${GROUP_LABEL[st]}<span>${g.length}</span></h3><div class="cards">${g.map(cardHTML).join('')}</div></section>`}).join('');
+  }else box.innerHTML=`<div class="cards">${rows.map(cardHTML).join('')}</div>`;
+}
+
+/* ---------- board: history (shared) ---------- */
+function auditBlock(a){
+  const q=ui.q.trim().toLowerCase();
+  const all=state.batches.filter(b=>b.auditId===a.id).map(decorate).sort((x,y)=>x.pull<y.pull?-1:x.pull>y.pull?1:0);
+  const rows=all.filter(r=>matchQ(r,q));
+  if(q&&!rows.length)return'';
+  const exp=all.filter(r=>r.days<0).length;
+  return`<details class="audit"${q?' open':''}><summary><h3>فحص ${fmt(toISO(new Date(a.startedAt)))}</h3><span class="sub">${fmtT(a.startedAt)}${a.endedAt?' – '+fmtT(a.endedAt):''} · ${esc(a.user||'')}</span>
+    <span class="tags"><span class="pill blue">${all.length} منتج</span>${exp?`<span class="pill expired">${exp} منتهي</span>`:''}</span></summary>
+    <div class="audit-body"><div class="audit-tools"><button type="button" class="btn" data-act="export-audit" data-id="${a.id}">${ic.down}تصدير CSV</button></div>
+    ${rows.map(r=>`<div class="mini"><div class="p">${thumb(r.p)}<div style="min-width:0"><div class="pn"><bdi class="nm">${esc(r.p.name)}</bdi></div><div class="chips"><span class="tag mono">${esc(r.p.id)}</span><span class="tag mono">${esc(r.bc)}</span></div></div></div>
+      <div><span class="lb">تاريخ الانتهاء</span><b>${fmt(r.b.expiry)}</b>${r.pd>0?`<div class="chips"><span class="tag pull">سحب ${fmt(r.pull)}</span></div>`:''}</div><div><span class="lb">الحالة اليوم</span>${pill(r.st,stLabel(r))}</div></div>`).join('')||'<div class="more">لا توجد منتجات في هذا الفحص.</div>'}
+    </div></details>`;
+}
+function renderHistory(){
+  $('#headActions').innerHTML='';
+  const parts=state.audits.map(auditBlock).filter(Boolean);
+  $('#history').innerHTML=parts.length?`<div style="display:grid;gap:12px">${parts.join('')}</div>`:`<div class="empty"><b>${state.audits.length?'لا توجد نتائج':'لا توجد فحوصات سابقة'}</b><p>${state.audits.length?'لم يُعثر على منتج بهذا البحث.':'عند الضغط على «إنهاء الفحص» يُحفظ الفحص هنا ويراه كل من يفتح الموقع.'}</p></div>`;
+}
+function setView(v){
+  ui.view=v;
+  $('#tabCur').setAttribute('aria-selected',v==='cur');$('#tabHist').setAttribute('aria-selected',v==='hist');
+  $('#list').hidden=v!=='cur';$('#history').hidden=v!=='hist';$('#sortWrap').hidden=v!=='cur';
+  renderAll();
+}
+function renderAll(){renderCurrent();if(ui.view==='hist')renderHistory()}
+
+/* ---------- search entry ---------- */
+const qEl=$('#q'),cells=[...document.querySelectorAll('#cells .cell')];
+let searchToken=0,debounce=null;
+function paintCells(){
+  const d=qEl.value,foc=document.activeElement===qEl,v=d.length>6?d.slice(-6):d.padEnd(6,' ');
+  cells.forEach((c,i)=>{const ch=v[i].trim();c.textContent=ch;c.classList.toggle('full',!!ch);c.classList.toggle('on',foc&&d.length<6&&i===d.length)});
+}
+function focusSearch(){if(catalogReady&&!document.querySelector('dialog[open]')){qEl.focus();paintCells()}}
+function setStatus(kind,msg,retry){
+  const el=$('#searchStatus');el.className='status '+kind;
+  if(kind==='loading')el.innerHTML='<span class="spin" aria-hidden="true"></span><span></span>';
+  else if(retry)el.innerHTML=`<span></span><button type="button" class="btn" data-act="${retry}">${retry==='reload'?'إعادة تحميل الصفحة':'حاول مرة أخرى'}</button>`;
+  else el.innerHTML='<span></span>';
+  el.querySelector('span:not(.spin)').textContent=msg;
+}
+const IDLE='جاهز. سيبدأ البحث تلقائيًا عند اكتمال 6 أرقام.';
+function setBusy(b){qEl.disabled=b;$('#scanBtn').disabled=b;$('#cells').classList.toggle('busy',b)}
+function resetSearch(){setBusy(false);qEl.value='';searchToken++;setStatus('idle',IDLE);focusSearch();paintCells()}
+async function runSearch(raw){
+  const d=digitsOnly(raw);
+  if(!catalogReady){setStatus('loading','جارٍ تحميل قاعدة المنتجات…');return}
+  if(d.length<6){setStatus('error','اكتب 6 أرقام على الأقل من الباركود.');return}
+  const token=++searchToken;setBusy(true);setStatus('loading','جارٍ البحث عن المنتج…');
+  try{
+    const m=await ProductAPI.search(d);
+    if(token!==searchToken)return;
+    setBusy(false);
+    if(!m.length){setStatus('empty',`لا يوجد منتج باركوده ينتهي بـ ${d.slice(-14)}. راجع الأرقام أو امسح الباركود كاملًا.`,'retry');return}
+    setStatus('idle',m.length>1?`${m.length} منتجات تنتهي بهذه الأرقام. اختر المنتج الصحيح.`:'تم العثور على المنتج.');
+    openProduct(m,d);
+  }catch(e){if(token===searchToken){setBusy(false);setStatus('error','تعذر البحث في قاعدة المنتجات. حاول مرة أخرى.','retry')}}
+}
+qEl.addEventListener('input',()=>{
+  const d=digitsOnly(qEl.value).slice(0,14);qEl.value=d;paintCells();clearTimeout(debounce);
+  if(d.length<6){setStatus('idle',IDLE);return}
+  /* a short pause lets a barcode scanner finish typing the full number before the search starts */
+  if(d.length===6||d.length>=12)debounce=setTimeout(()=>runSearch(d),d.length===6?260:60);
+});
+qEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(debounce);runSearch(qEl.value)}});
+qEl.addEventListener('focus',paintCells);qEl.addEventListener('blur',paintCells);
+
+/* ---------- product dialog ---------- */
+const dlgP=$('#dlgProduct');
+let pd={matches:[],suffix:'',pick:null,saved:false,saving:false};
+function openProduct(matches,suffix){
+  pd={matches,suffix,pick:matches.length===1?matches[0]:null,saved:false,saving:false};
+  renderProductDlg();if(!dlgP.open)dlgP.showModal();
+  if(pd.pick)setTimeout(()=>$('#expiry')?.focus(),30);
+}
+function renderProductDlg(){
+  const closeBtn=`<button type="button" class="icon-btn" data-close="dlgProduct" aria-label="إغلاق">${ic.x}</button>`;
+  if(!pd.pick){
+    const show=pd.matches.slice(0,40);
+    dlgP.innerHTML=`<div class="dlg"><div class="dlg-head"><div><h2 id="dlgProductTitle">اختر المنتج الصحيح</h2><p>الأرقام <span class="mono">${esc(pd.suffix)}</span> تطابق ${pd.matches.length} منتجات. قارن الاسم والباركود الكامل.</p></div>${closeBtn}</div>
+      <div class="pick">${show.map((m,i)=>`<button type="button" data-pick="${i}">${thumb(m.p)}<span style="min-width:0"><span class="pn" style="display:block"><bdi class="nm">${esc(m.p.name)}</bdi></span><span class="chips"><span class="tag mono">${esc(m.p.id)}</span>${bcHTML(m.bc,pd.suffix)}${m.p.ex?'':'<span class="tag">بدون صلاحية في النظام</span>'}</span></span></button>`).join('')}${pd.matches.length>show.length?`<div class="more">يوجد ${pd.matches.length-show.length} نتائج أخرى. اكتب رقمًا أطول للتضييق.</div>`:''}</div>
+      <button type="button" class="btn" data-close="dlgProduct" style="height:50px">إلغاء</button></div>`;return;
+  }
+  const {p,bc}=pd.pick;
+  dlgP.innerHTML=`<form class="dlg" id="dateForm" novalidate>
+    <div class="dlg-head"><div><h2 id="dlgProductTitle">متى تنتهي صلاحيته؟</h2><p>راجع المنتج ثم اختر التاريخ المطبوع على العبوة.</p></div>${closeBtn}</div>
+    <div class="hero">${thumb(p)}<div style="min-width:0"><div class="pn"><bdi class="nm">${esc(p.name)}</bdi></div><div class="chips">${p.cat?`<span class="tag">${esc(p.cat)}</span>`:''}<span class="tag">المخزون: ${p.stock}</span>${p.ex?'':'<span class="tag">بدون صلاحية في النظام</span>'}${pullTag(p)}</div></div></div>
+    <dl class="facts"><div><dt>رقم المنتج</dt><dd class="mono">${esc(p.id)}</dd></div><div><dt>الأرقام المُدخلة</dt><dd class="mono">${esc(pd.suffix.slice(-14))}</dd></div><div class="wide"><dt>الباركود الكامل</dt><dd>${bcHTML(bc,pd.suffix.slice(-6))}</dd></div></dl>
+    <div><label class="label" for="expiry">تاريخ الانتهاء المطبوع</label><input class="date-in" type="date" id="expiry" required>
+      <div class="quick" role="group" aria-label="تواريخ سريعة">${[[1,'غدًا'],[3,'بعد 3 أيام'],[7,'بعد أسبوع'],[14,'بعد أسبوعين'],[30,'بعد شهر'],[90,'بعد 3 شهور']].map(([n,l])=>`<button type="button" data-add="${n}">${l}</button>`).join('')}</div></div>
+    <div class="preview" id="preview" aria-live="polite"></div>
+    <p class="err" id="dErr" role="alert" hidden></p>
+    ${pd.matches.length>1?'<button type="button" class="link-btn" data-back>العودة لقائمة المنتجات المطابقة</button>':''}
+    <div class="dlg-actions"><button type="submit" class="btn btn-blue btn-xl" id="saveBtn" style="height:58px">حفظ تاريخ الانتهاء</button><button type="button" class="btn" data-close="dlgProduct" style="height:58px">إلغاء</button></div></form>`;
+}
+function validateDate(v){
+  if(!v)return{ok:false,msg:'اختر تاريخ الانتهاء أولًا.'};
+  const d=parseISO(v);if(!d)return{ok:false,msg:'التاريخ غير صالح. تحقق من اليوم والشهر والسنة.'};
+  const t=todayStart(),max=new Date(t.getFullYear()+10,t.getMonth(),t.getDate()),min=new Date(t.getFullYear()-2,0,1);
+  if(d>max||d<min)return{ok:false,msg:'التاريخ خارج النطاق المعقول. راجع السنة.'};
+  return{ok:true};
+}
+function updatePreview(prefix,p){
+  const v=$('#'+prefix+'expiry').value,box=$('#'+prefix+'preview');if(!box)return;
+  if(!v||!validateDate(v).ok){box.innerHTML='';return}
+  const n=daysLeft(v),d=pullDays(p),st=statusOf(n-d);
+  const label=st==='expired'?(n<0?'منتهي':'يُسحب الآن'):st==='soon'?'خلال 3 أيام':st==='week'?'خلال 7 أيام':'صالح';
+  box.innerHTML=`<span class="mono">${fmt(v)}</span>${pill(st,label)}<span>${leftText(n,d)}</span>${d>0&&n>=0?`<span class="warn">يُسحب من الرف في ${fmt(pullISO(v,d))}</span>`:''}${n<0?'<span class="warn">التاريخ في الماضي. سيُسجَّل المنتج كمنتهي.</span>':''}`;
+}
+function showErr(id,msg){const e=$('#'+id);e.textContent=msg;e.hidden=!msg}
+dlgP.addEventListener('click',e=>{
+  if(e.target===dlgP){dlgP.close();return}
+  const pk=e.target.closest('[data-pick]');
+  if(pk){pd.pick=pd.matches[+pk.dataset.pick];renderProductDlg();setTimeout(()=>$('#expiry')?.focus(),20);return}
+  if(e.target.closest('[data-back]')){pd.pick=null;renderProductDlg();return}
+  const add=e.target.closest('[data-add]');
+  if(add){$('#expiry').value=addDaysISO(+add.dataset.add);showErr('dErr','');updatePreview('',pd.pick.p);return}
+  if(e.target.closest('[data-close]'))dlgP.close();
+});
+dlgP.addEventListener('input',e=>{if(e.target.id==='expiry'){showErr('dErr','');updatePreview('',pd.pick.p)}});
+const DUP_MSG='هذه الدفعة مسجلة بالفعل بنفس تاريخ الانتهاء. إذا كانت دفعة مختلفة فاختر تاريخها.';
+dlgP.addEventListener('submit',async e=>{
+  e.preventDefault();if(pd.saving)return;
+  const v=$('#expiry').value,chk=validateDate(v);
+  if(!chk.ok){showErr('dErr',chk.msg);$('#expiry').focus();return}
+  const {p,bc}=pd.pick;
+  if(Batches.exists(p.id,v)){showErr('dErr',DUP_MSG);$('#expiry').focus();return}
+  pd.saving=true;const btn=$('#saveBtn');btn.disabled=true;btn.innerHTML='<span class="spin"></span>جارٍ الحفظ…';
+  try{
+    const b=await Batches.add(p.id,v,bc);pd.saved=true;ui.flash=b.id;
+    if(ui.view!=='cur')ui.view='cur';
+    dlgP.close();setView('cur');
+    toast(`تم الحفظ · ينتهي ${fmt(v)}`);
+    setTimeout(()=>{ui.flash=null;if(ui.view==='cur'&&!document.querySelector('dialog[open]'))renderCurrent()},1600);
+  }catch(err){
+    pd.saving=false;btn.disabled=false;btn.textContent='حفظ تاريخ الانتهاء';
+    showErr('dErr',err&&err.status===409?DUP_MSG:'تعذر الحفظ. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.');
+  }
+});
+dlgP.addEventListener('close',()=>{pd.saving=false;resetSearch()});
+
+/* ---------- edit dialog ---------- */
+const dlgE=$('#dlgEdit');let editId=null,editP=null;
+function openEdit(id){
+  const r=decorate(state.batches.find(b=>b.id===id));editId=id;editP=r.p;
+  dlgE.innerHTML=`<form class="dlg" id="editForm" novalidate>
+    <div class="dlg-head"><div><h2 id="dlgEditTitle">تعديل تاريخ الانتهاء</h2><p>التاريخ الحالي ${fmt(r.b.expiry)}</p></div><button type="button" class="icon-btn" data-close="dlgEdit" aria-label="إغلاق">${ic.x}</button></div>
+    <div class="hero">${thumb(r.p)}<div style="min-width:0"><div class="pn"><bdi class="nm">${esc(r.p.name)}</bdi></div><div class="chips"><span class="tag mono">${esc(r.p.id)}</span><span class="tag mono">${esc(r.bc)}</span>${pullTag(r.p)}</div></div></div>
+    <div><label class="label" for="eexpiry">تاريخ الانتهاء الجديد</label><input class="date-in" type="date" id="eexpiry" value="${esc(r.b.expiry)}" required></div>
+    <div class="preview" id="epreview" aria-live="polite"></div>
+    <p class="err" id="eErr" role="alert" hidden></p>
+    <div class="dlg-actions"><button type="submit" class="btn btn-blue" id="eSave" style="height:54px">حفظ التعديل</button><button type="button" class="btn" data-close="dlgEdit" style="height:54px">إلغاء</button></div></form>`;
+  dlgE.showModal();updatePreview('e',editP);setTimeout(()=>$('#eexpiry').focus(),30);
+}
+dlgE.addEventListener('input',e=>{if(e.target.id==='eexpiry'){showErr('eErr','');updatePreview('e',editP)}});
+dlgE.addEventListener('submit',async e=>{
+  e.preventDefault();const v=$('#eexpiry').value,chk=validateDate(v);
+  if(!chk.ok){showErr('eErr',chk.msg);return}
+  const b=state.batches.find(x=>x.id===editId);
+  if(Batches.exists(b.productId,v,b.id)){showErr('eErr','توجد دفعة أخرى لنفس المنتج بهذا التاريخ في الفحص الحالي.');return}
+  const btn=$('#eSave');btn.disabled=true;btn.innerHTML='<span class="spin"></span>جارٍ الحفظ…';
+  try{await Batches.setExpiry(editId,v);dlgE.close();renderAll();toast('تم تحديث تاريخ الانتهاء')}
+  catch(err){btn.disabled=false;btn.textContent='حفظ التعديل';showErr('eErr',err&&err.status===409?'توجد دفعة أخرى لنفس المنتج بهذا التاريخ في الفحص الحالي.':'تعذر الحفظ. تحقق من الاتصال وحاول مرة أخرى.')}
+});
+dlgE.addEventListener('click',e=>{if(e.target===dlgE||e.target.closest('[data-close]'))dlgE.close()});
+dlgE.addEventListener('close',focusSearch);
+
+/* ---------- camera scanner ---------- */
+const dlgS=$('#dlgScan');let scanner=null;
+const scanMsg=(t,bad)=>{const m=$('#scanMsg');m.textContent=t;m.className='scan-msg'+(bad?' bad':'')};
+function camError(e){
+  const s=String(e&&(e.name||e.message||e));
+  if(/NotAllowed|Permission|denied/i.test(s))return'تم رفض إذن الكاميرا. اسمح بالوصول من إعدادات المتصفح، أو التقط صورة للباركود، أو اكتب الرقم يدويًا.';
+  if(/NotFound|Requested device/i.test(s))return'لا توجد كاميرا متاحة على هذا الجهاز. التقط صورة للباركود أو اكتب الرقم يدويًا.';
+  if(/NotReadable|in use/i.test(s))return'الكاميرا مستخدمة في تطبيق آخر. أغلقه ثم أعد المحاولة، أو اكتب الرقم يدويًا.';
+  return'تعذر تشغيل الكاميرا في هذا العرض. التقط صورة للباركود أو اكتب الرقم يدويًا.';
+}
+async function stopScanner(){if(!scanner)return;const s=scanner;scanner=null;try{await s.stop()}catch(e){}try{s.clear()}catch(e){}}
+function onScanned(code){
+  const d=digitsOnly(code);if(d.length<6){scanMsg('الباركود المقروء غير صالح. حاول مرة أخرى.',true);return}
+  stopScanner().then(()=>{dlgS.close();qEl.value=d.slice(0,14);paintCells();runSearch(d)});
+}
+async function startScanner(){
+  scanMsg('جارٍ تشغيل الكاميرا…');
+  if(typeof Html5Qrcode==='undefined'){scanMsg('تعذر تحميل مكتبة المسح. التقط صورة للباركود أو اكتب الرقم يدويًا.',true);return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){scanMsg(camError('unsupported'),true);return}
+  try{
+    const F=Html5QrcodeSupportedFormats;
+    scanner=new Html5Qrcode('reader',{formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39],useBarCodeDetectorIfSupported:true,verbose:false});
+    await scanner.start({facingMode:'environment'},{fps:10,qrbox:(w,h)=>({width:Math.max(150,Math.min(w-24,340)),height:Math.max(90,Math.min(h-24,130))})},onScanned,()=>{});
+    scanMsg('الكاميرا تعمل. قرّب الباركود داخل الإطار.');
+  }catch(e){scanner=null;scanMsg(camError(e),true)}
+}
+$('#scanBtn').addEventListener('click',()=>{dlgS.showModal();$('#reader').innerHTML='';startScanner()});
+dlgS.addEventListener('close',async()=>{await stopScanner();focusSearch()});
+dlgS.addEventListener('click',e=>{if(e.target===dlgS||e.target.closest('[data-close]'))dlgS.close()});
+$('#manualForm').addEventListener('submit',e=>{
+  e.preventDefault();const d=digitsOnly($('#manualQ').value);
+  if(d.length<6){scanMsg('اكتب 6 أرقام على الأقل.',true);return}
+  dlgS.close();qEl.value=d;paintCells();runSearch(d);$('#manualQ').value='';
+});
+$('#photoIn').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  scanMsg('جارٍ قراءة الصورة…');
+  try{
+    if(typeof Html5Qrcode==='undefined')throw new Error('lib');
+    await stopScanner();
+    const h=new Html5Qrcode('reader-file',{verbose:false});
+    const text=await h.scanFile(f,false);try{h.clear()}catch(_){}
+    onScanned(text);
+  }catch(err){scanMsg('لم يُقرأ باركود في الصورة. قرّب الكاميرا من الباركود وتأكد من الإضاءة ثم أعد المحاولة.',true)}
+  e.target.value='';
+});
+
+/* ---------- CSV export ---------- */
+function csvFor(rows){
+  const head=['اسم المنتج','رقم المنتج','الباركود','القسم','تاريخ الانتهاء','تاريخ السحب من الرف','الأيام المتبقية للسحب','الحالة','تاريخ الإضافة'];
+  const lines=[head,...rows.map(r=>[r.p.name,r.p.id,'="'+r.bc+'"',r.p.cat||'',fmt(r.b.expiry),fmt(r.pull),r.eff,stLabel(r),fmtDT(r.b.addedAt)])];
+  return'﻿'+lines.map(l=>l.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+}
+async function exportCsv(auditId){
+  const rows=state.batches.filter(b=>b.auditId===auditId).map(decorate).sort((a,b)=>a.pull<b.pull?-1:a.pull>b.pull?1:0);
+  if(!rows.length){toast('لا توجد منتجات لتصديرها.','warn');return}
+  const csv=csvFor(rows),name=`freshness-audit-${toISO(new Date())}.csv`;
+  if(window.claude&&window.claude.use){
+    let dl=null;try{dl=await window.claude.use('downloads')}catch(e){}
+    if(dl){try{await dl.save({filename:name,data:csv});toast('تم تجهيز ملف CSV.');return}catch(e){if(e&&e.code==='declined')return}}
+    $('#csvText').value=csv;$('#dlgExport').showModal();return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast('تم تنزيل ملف CSV.');
+}
+$('#copyCsv').addEventListener('click',async()=>{const t=$('#csvText');try{await navigator.clipboard.writeText(t.value);toast('تم نسخ المحتوى.')}catch(e){t.select();toast('حدد النص وانسخه يدويًا.','warn')}});
+$('#dlgExport').addEventListener('click',e=>{if(e.target.id==='dlgExport'||e.target.closest('[data-close]'))$('#dlgExport').close()});
+
+/* ---------- events ---------- */
+document.addEventListener('click',async e=>{
+  const f=e.target.closest('[data-filter]');
+  if(f){const k=f.dataset.filter;ui.filter=(ui.filter===k&&k!=='all')?'all':k;renderCurrent();return}
+  const a=e.target.closest('[data-act]');if(!a)return;
+  const id=a.dataset.id;
+  switch(a.dataset.act){
+    case'retry':resetSearch();break;
+    case'reload':location.reload();break;
+    case'edit':openEdit(id);break;
+    case'del':ui.confirmDel=id;renderCurrent();setTimeout(()=>{if(ui.confirmDel===id){ui.confirmDel=null;if(ui.view==='cur')renderCurrent()}},4000);break;
+    case'del-yes':
+      ui.confirmDel=null;
+      try{await Batches.remove(id);toast('تم حذف السجل.','warn')}catch(err){toast('تعذر الحذف. حاول مرة أخرى.','warn');await sync()}
+      renderAll();break;
+    case'clear-filters':ui.filter='all';ui.q='';$('#listQ').value='';renderAll();break;
+    case'export-current':exportCsv(state.current.id);break;
+    case'export-audit':exportCsv(id);break;
+    case'finish':ui.confirmFinish=true;renderCurrent();setTimeout(()=>{if(ui.confirmFinish){ui.confirmFinish=false;renderCurrent()}},6000);break;
+    case'finish-no':ui.confirmFinish=false;renderCurrent();break;
+    case'finish-yes':
+      ui.confirmFinish=false;
+      try{await Batches.finish();ui.filter='all';renderAll();toast('تمت أرشفة الفحص. تجده في «السجل».');focusSearch()}
+      catch(err){renderAll();toast('تعذر إنهاء الفحص. حاول مرة أخرى.','warn')}
+      break;
+  }
+});
+$('#listQ').addEventListener('input',e=>{ui.q=e.target.value;renderAll()});
+$('#sortSel').addEventListener('change',e=>{ui.sort=e.target.value;renderCurrent()});
+$('#tabCur').addEventListener('click',()=>setView('cur'));
+$('#tabHist').addEventListener('click',()=>setView('hist'));
+/* digits typed anywhere go to the search field, so a barcode scanner never loses a scan */
+document.addEventListener('keydown',e=>{
+  if(document.querySelector('dialog[open]')||e.ctrlKey||e.metaKey||e.altKey)return;
+  const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA'||tag==='BUTTON')return;
+  if(/^[0-9]$/.test(e.key)&&catalogReady)qEl.focus();
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)(mode==='server'?sync():Promise.resolve().then(()=>{if(!document.querySelector('dialog[open]'))renderAll()}))});
+setInterval(()=>{if(document.hidden||document.querySelector('dialog[open]'))return;if(mode==='server')sync();else renderAll()},15000);
+
+/* ---------- boot ---------- */
+(async function boot(){
+  setBusy(true);setStatus('loading','جارٍ تحميل قاعدة المنتجات…');
+  const [c]=await Promise.all([loadCatalog().then(()=>true,()=>false),loadState()]);
+  renderAll();
+  if(!c){setBusy(true);setStatus('error','تعذر تحميل قاعدة المنتجات. تحقق من الاتصال ثم أعد تحميل الصفحة.','reload');return}
+  setBusy(false);setStatus('idle',IDLE);qEl.focus();paintCells();
+})();
+})();
+</script>
+</html>

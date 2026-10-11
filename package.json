@@ -1,0 +1,6 @@
+{
+  "name": "freshness-audit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Supermarket freshness audit (Arabic RTL) with a shared history on Vercel"
+}
